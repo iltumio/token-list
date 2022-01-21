@@ -79,3 +79,9 @@ test('Token list does not have duplicate entries', async (t) => {
       return agg;
     }, new Map<string, TokenInfo>());
 });
+
+test('Token list is retrievable from ROAD', async (t) => {
+  const list = (await new TokenListProvider().resolve(Strategy.ROAD)).getList();
+
+  t.true(list.length > 0);
+});

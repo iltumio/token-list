@@ -1,5 +1,7 @@
 import { fetch } from 'cross-fetch';
 
+import { ROADListProvider } from '../providers/ROADListProvider';
+
 import tokenlist from './../tokens/solana.tokenlist.json';
 
 export enum ENV {
@@ -87,10 +89,20 @@ export class SolanaTokenListResolutionStrategy {
   };
 }
 
+export class ROADTokenListResolutionStrategy {
+  provider = new ROADListProvider();
+
+  resolve = async () => {
+    const tokenLinks = await this.provider.getTokenLinks();
+    return queryAndMerge(tokenLinks);
+  };
+}
+
 const queryJsonFiles = async (files: string[]) => {
   const responses: TokenList[] = (await Promise.all(
     files.map(async (repo) => {
       try {
+        await new Promise((resolve) => setTimeout(resolve, 500));
         const response = await fetch(repo);
         const json = (await response.json()) as TokenList;
         return json;
@@ -108,11 +120,31 @@ const queryJsonFiles = async (files: string[]) => {
     .reduce((acc, arr) => (acc as TokenInfo[]).concat(arr), []);
 };
 
+const queryAndMerge = async (links: string[]) => {
+  const responses: TokenInfo[] = (await Promise.all(
+    links.map(async (link) => {
+      try {
+        const response = await fetch(link);
+        const json = await response.json();
+        return JSON.parse(json.body) as TokenInfo;
+      } catch {
+        console.info(
+          `@solana/token-registry: falling back to static repository.`
+        );
+        return tokenlist;
+      }
+    })
+  )) as TokenInfo[];
+
+  return responses;
+};
+
 export enum Strategy {
   GitHub = 'GitHub',
   Static = 'Static',
   Solana = 'Solana',
   CDN = 'CDN',
+  ROAD = 'ROAD',
 }
 
 export class StaticTokenListResolutionStrategy {
@@ -127,6 +159,7 @@ export class TokenListProvider {
     [Strategy.Static]: new StaticTokenListResolutionStrategy(),
     [Strategy.Solana]: new SolanaTokenListResolutionStrategy(),
     [Strategy.CDN]: new CDNTokenListResolutionStrategy(),
+    [Strategy.ROAD]: new ROADTokenListResolutionStrategy(),
   };
 
   resolve = async (
